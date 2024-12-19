@@ -1,25 +1,27 @@
 import pandas as pd
 import streamlit as st
-from openai import OpenAI
+import cohere
 import os
 from io import BytesIO
 import xlsxwriter
 
-
 # Load your API key from Streamlit secrets
-api_key = st.secrets["OPENAI_API_KEY"]
+api_key = st.secrets["COHERE_API_KEY"]
 
 if not api_key:
-    st.error("API key not found. Please set the OPENAI_API_KEY in Streamlit secrets.")
+    st.error("API key not found. Please set the COHERE_API_KEY in Streamlit secrets.")
 else:
-    client = OpenAI(api_key=api_key)
+    co = cohere.Client(api_key)
 
-    def chat_gpt(prompt):
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
+    def chat_cohere(prompt):
+        response = co.generate(
+            model="command-xlarge-nightly",
+            prompt=prompt,
+            max_tokens=1000,
+            temperature=0.7,
+            stop_sequences=["--END--"]
         )
-        return response.choices[0].message.content.strip()
+        return response.generations[0].text.strip()
 
     def read_etl_mapping(file_path):
         return pd.read_excel(file_path)
@@ -36,14 +38,8 @@ else:
 
     def generate_validation_sql(prompt_template, etl_mapping_content):
         prompt = prompt_template + "\n\n" + etl_mapping_content
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that generates SQL validation queries from ETL mapping documents."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response.choices[0].message.content.strip()
+        response = chat_cohere(prompt)
+        return response
 
     # Streamlit UI
     st.title("ETL Mapping to Validation SQL Converter")
